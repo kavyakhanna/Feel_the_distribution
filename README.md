@@ -12,7 +12,7 @@ Everything tonight's lecture said follows from one fact: the component returns a
 - Python 3.12 or newer, and [`uv`](https://docs.astral.sh/uv/) (or plain `pip`).
 - A Gemini API key, one per student, free: https://aistudio.google.com/apikey
 - Nothing on AWS. The Learner Lab setup and the usage alarms are a checklist to complete
-  before Week 2; see *Configuring AWS* in the course guide.
+  before the next class; see *Configuring AWS* in the course guide.
 
 ## Setup
 
@@ -57,8 +57,8 @@ calls a minute; the script pauses on rate limits and continues. Every call is ap
 as it lands, and the summary and plot (`runs/distribution.png`) come at the end.
 
 Thirty is a small sample for a distribution. It is enough to see the shape tonight;
-`--n 100` is the real thing if you have the time, and Week 5 is where sample size
-becomes the subject.
+`--n 100` is the real thing if you have the time. Sample size becomes a subject
+of its own later in the course.
 
 **What to watch.** Each sample scrolls past as it lands: the decision, the amount, and
 the one-sentence reason. The ticket asks for a $38 lamp plus $14.99 shipping, which is

@@ -38,7 +38,7 @@ FIXED_TICKET = (
 
 # --- Part 2: the ten-item harness --------------------------------------------
 # Each item: a category, a ticket, and the route the policy says is correct.
-# The categories are what Week 5 will call *slices*. The aggregate accuracy across
+# The categories are what the course will later call *slices*. The aggregate accuracy across
 # all ten hides which one is failing; the per-category rate does not.
 
 CLEAN_ACCOUNT = {
