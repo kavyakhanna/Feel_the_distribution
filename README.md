@@ -78,10 +78,11 @@ Answer, one sentence each:
 4. **At temperature 2, which outputs break the policy the prompt states?** Nothing about
    the prompt changed between those calls and the ones that followed it.
 
-While it runs, read `triage.py` top to bottom. It is about eighty lines and it is the
-entire mechanism: render, sample, parse. Notice where the policy lives, what the model
-is allowed to see, and what the code does when the model returns something that is
-not a decision.
+While it runs, read `triage.py` top to bottom. It is short and it is the entire
+mechanism: render, sample, parse. Notice where the policy lives, what the model is
+allowed to see, and what the code does when the model returns something that is not a
+decision. (`plumbing.py` holds the rate-limit retries and the fake provider. You can
+skip it.)
 
 ## Part 2: find the slice
 

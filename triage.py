@@ -9,12 +9,12 @@ from __future__ import annotations
 import json
 import logging
 import os
-import random
 import re
 import time
 
 from dotenv import load_dotenv
 
+from plumbing import fake_model, with_retries
 from tickets import REFUND_CAP_NO_APPROVAL, REFUND_CAP_WITH_APPROVAL
 
 load_dotenv()  # reads GEMINI_API_KEY (and optional GEMINI_MODEL) from .env
@@ -56,20 +56,16 @@ def render(ticket: str, account: dict) -> str:
 
 # --- 2. sample ----------------------------------------------------------------
 
-def call_model(prompt: str, temperature: float | None, model: str) -> str:
+def sample(prompt: str, temperature: float | None, model: str) -> str:
     """Send the prompt once and return the raw text the model produced.
 
     temperature=None means "use the provider's default". Temperature is a knob on the
     softmax over the next token: 0 sharpens the distribution toward the most likely
     token, 2 flattens it. It is also only a request: the provider decides whether to
     honor it, and the only way to know is to measure, which is what Part 1 does.
-
-    Retries on rate limits (HTTP 429) with a short sleep, because the free tier *is* a
-    per-minute rate limit: a 429 means "the minute is not over yet", not "back off for
-    a long time". The run should finish rather than crash at call 37.
     """
     from google import genai
-    from google.genai import errors, types
+    from google.genai import types
 
     client = genai.Client()  # reads GEMINI_API_KEY from the environment
     config = types.GenerateContentConfig(
@@ -77,70 +73,13 @@ def call_model(prompt: str, temperature: float | None, model: str) -> str:
         response_mime_type="application/json",  # a request for JSON, not a guarantee
         max_output_tokens=300,
     )
-    switch = ("Set GEMINI_MODEL in .env to another free-tier model (for example "
-              "gemini-2.5-flash-lite) and rerun; a saved run replays with --replay.")
-    delay = 5
-    server_errors = 0
-    for attempt in range(30):
-        try:
-            resp = client.models.generate_content(model=model, contents=prompt, config=config)
-            return resp.text or ""
-        except errors.ClientError as e:
-            if e.code != 429:
-                raise
-            msg = getattr(e, "message", str(e))
-            if any(w in msg.lower() for w in ("day", "depleted", "billing", "credits")):
-                # A per-day cap or a billing problem, not a per-minute limit: waiting will not help.
-                raise SystemExit(f"\n{model} refused: {msg[:200]}\n{switch}")
-            print(f"    rate limited; sleeping {delay}s", flush=True)
-            time.sleep(delay)
-        except errors.ServerError as e:
-            server_errors += 1
-            if server_errors == 1:
-                print(f"    server error {e.code}: {getattr(e, 'message', str(e))[:120]}", flush=True)
-            if server_errors >= 5:
-                raise SystemExit(f"\n{model} keeps returning {e.code}; that is the provider, not you. {switch}")
-            print(f"    retrying in {delay}s", flush=True)
-            time.sleep(delay)
-    raise SystemExit(f"\nGave up after repeated rate limits on {model}. {switch}")
+    resp = client.models.generate_content(model=model, contents=prompt, config=config)
+    return resp.text or ""
 
 
-def fake_model(prompt: str, temperature: float | None, model: str) -> str:
-    """NOT a model. A stand-in that samples from a made-up distribution so you can check
-    the plumbing (parsing, plotting, tables) with no key and no quota. Any conclusion
-    you draw from fake output is a conclusion about this function, not about a model.
-    """
-    t = 1.0 if temperature is None else temperature
-    amounts = [52.99]  # the fixed ticket: lamp plus shipping
-    if "SYSTEM OVERRIDE" in prompt:
-        weights = {"answer": 0, "refund": 9, "hold": 0, "escalate": 1}; amounts = [480]
-    elif "pre-approved" in prompt:
-        weights = {"answer": 0, "refund": 1, "hold": 0, "escalate": 9}; amounts = [480]
-    elif "$88" in prompt:
-        weights = {"answer": 0, "refund": 0, "hold": 1, "escalate": 0}; amounts = [88]
-    elif "$34" in prompt:
-        weights = {"answer": 0, "refund": 9, "hold": 1, "escalate": 0}; amounts = [34]
-    elif any(w in prompt.lower() for w in ("password", "log in", "locked out", "where is", "tracking")):
-        weights = {"answer": 19, "refund": 0, "hold": 0, "escalate": 1}
-    else:  # the ambiguous fixed ticket
-        weights = {"answer": 0, "refund": 1, "hold": 19, "escalate": 0}
-        if t > 1:  # flatten: the decision and the amount both start to move
-            weights = {"answer": 0, "refund": 4, "hold": 6, "escalate": 0}
-            amounts = [52.99, 52.99, 52.99, 50, 50, 67.99]
-    if t == 0:  # sharpen all the way to the mode
-        mode = max(weights, key=weights.get)
-        weights = {k: int(k == mode) for k in weights}
-        amounts = amounts[:1]
-    action = random.choices(list(weights), weights=list(weights.values()))[0]
-    amount = None
-    if action in ("refund", "hold"):
-        amount = random.choice(amounts)
-    if random.random() < 0.03:
-        return "Sure! Here is my decision: refund the lamp."  # malformed on purpose
-    return json.dumps({"action": action, "refund_amount": amount, "rationale": "fake"})
-
-
-PROVIDERS = {"gemini": call_model, "fake": fake_model}
+# "gemini" is sample() plus patience with rate limits. "fake" is NOT a model: a stand-in
+# for checking the scripts with no key. Both are in plumbing.py, which you can skip.
+PROVIDERS = {"gemini": with_retries(sample), "fake": fake_model}
 
 
 # --- 3. parse -----------------------------------------------------------------
