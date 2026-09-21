@@ -1,6 +1,7 @@
 # Feel the distribution
 
-Send one fixed input through a model fifty times and look at what comes back.
+Send one fixed input through a model ninety times, at three temperatures, and look at
+what comes back.
 Then run a ten-item harness across ticket categories and find the one that fails.
 
 Everything tonight's lecture said follows from one fact: the component returns a
@@ -50,19 +51,20 @@ and the homework questions are about the model.
 uv run distribution.py
 ```
 
-One ticket, fifty calls at temperature 0, fifty at the provider's default. About four
-minutes on the free tier, which allows roughly twenty-five calls a minute; the script
-pauses on rate limits and continues. Every call is appended to `runs/distribution.jsonl`
+One ticket, thirty calls at temperature 0, thirty at the provider's default, thirty at 2
+(the maximum). About four minutes on the free tier, which allows roughly twenty-five
+calls a minute; the script pauses on rate limits and continues. Every call is appended to `runs/distribution.jsonl`
 as it lands, and the summary and plot (`runs/distribution.png`) come at the end.
 
-Fifty is a small sample for a distribution. It is enough to see the shape tonight;
+Thirty is a small sample for a distribution. It is enough to see the shape tonight;
 `--n 100` is the real thing if you have the time, and Week 5 is where sample size
 becomes the subject.
 
 **What to watch.** Each sample scrolls past as it lands: the decision, the amount, and
 the one-sentence reason. The ticket asks for a $38 lamp plus $14.99 shipping, which is
-$52.99 against a $50 cap. Watch what the model does at the edge of that rule. Watch
-whether the sentence changes when the decision does not. Every ten calls a one-line
+$52.99 against a $50 cap. Watch what the model does at the edge of that rule, and how that
+changes from one temperature to the next. Watch whether the sentence changes when the
+decision does not. Every ten calls a one-line
 tally shows the shape so far.
 
 Answer, one sentence each:
@@ -73,6 +75,8 @@ Answer, one sentence each:
    policy in `triage.py`, and decide for yourself before you look at the rationale. If
    you see a refund of exactly $50, ask where that number came from.
 3. **Where did temperature change the decision, and where did it only change the words?**
+4. **At temperature 2, which outputs break the policy the prompt states?** Nothing about
+   the prompt changed between those calls and the ones that followed it.
 
 While it runs, read `triage.py` top to bottom. It is about eighty lines and it is the
 entire mechanism: render, sample, parse. Notice where the policy lives, what the model
@@ -92,7 +96,8 @@ at least 30% of the time.
 Write down **the category** and **one hypothesis for why**, then open `tickets.py`,
 read the tickets in that category, and check your hypothesis against the raw model
 output in `runs/slices.jsonl`. Is it the whole category, or one ticket in it? Read the
-rationale the model gave on the failures. It will often state the rule it is breaking.
+rationale the model gave on the failures, and compare the two tickets: what did one say
+that the other did not?
 
 If setup ate the time, do this part before the homework. It is thirty calls.
 
@@ -115,11 +120,13 @@ The homework asks about all three.
 | `… refused: Your prepayment credits are depleted` | Your key belongs to a project with billing, not the free tier. Create the key in a project with no billing attached; the lab is sized for the free tier. |
 | `… keeps returning 503` | The model is overloaded on the provider's side. Switch `GEMINI_MODEL` as above, or wait a few minutes. |
 | Model not found | The default model is pinned in `triage.py`. Set `GEMINI_MODEL` in `.env` to a current free-tier model. |
+| All three temperatures give the same spread | Some models accept a temperature and ignore it; `gemini-3.5-flash-lite` does. The lab needs one that honors it. Use the default, or `gemini-2.5-flash-lite`. |
 
 ## What this is one instance of
 
 The SDK, the model name, and the free tier are September 2026 details and will change.
 What does not change: a learned component is a function from input to a *distribution*
-over outputs; temperature is a systems parameter that reshapes that distribution; the
+over outputs; temperature is a systems parameter that reshapes that distribution, when
+the provider honors it, which you check by measuring; the
 aggregate hides which slice is failing; and the code around the model, not the model,
 decides what happens to an output that does not fit the contract. 

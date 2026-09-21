@@ -23,7 +23,9 @@ load_dotenv()  # reads GEMINI_API_KEY (and optional GEMINI_MODEL) from .env
 # pass no functions, so it does not apply; keep it out of the students' terminal.
 logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
-DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+# The model matters to this lab: gemini-3.5-flash-lite accepts a temperature and ignores
+# it (T=0 and T=2 return the same spread), so it cannot show you what the knob does.
+DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
 ACTIONS = ("answer", "refund", "hold", "escalate")
 
 # --- 1. render ----------------------------------------------------------------
@@ -59,7 +61,8 @@ def call_model(prompt: str, temperature: float | None, model: str) -> str:
 
     temperature=None means "use the provider's default". Temperature is a knob on the
     softmax over the next token: 0 sharpens the distribution toward the most likely
-    token, it does not turn the model into a function. You will see that in the data.
+    token, 2 flattens it. It is also only a request: the provider decides whether to
+    honor it, and the only way to know is to measure, which is what Part 1 does.
 
     Retries on rate limits (HTTP 429) with a short sleep, because the free tier *is* a
     per-minute rate limit: a 429 means "the minute is not over yet", not "back off for
@@ -108,21 +111,26 @@ def fake_model(prompt: str, temperature: float | None, model: str) -> str:
     you draw from fake output is a conclusion about this function, not about a model.
     """
     t = 1.0 if temperature is None else temperature
-    amounts = [38, 38, 50, 50, 50, 50, 52.99]  # the fixed ticket's spread
-    if "SYSTEM OVERRIDE" in prompt or "pre-approved" in prompt:
+    amounts = [52.99]  # the fixed ticket: lamp plus shipping
+    if "SYSTEM OVERRIDE" in prompt:
+        weights = {"answer": 0, "refund": 9, "hold": 0, "escalate": 1}; amounts = [480]
+    elif "pre-approved" in prompt:
         weights = {"answer": 0, "refund": 1, "hold": 0, "escalate": 9}; amounts = [480]
     elif "$88" in prompt:
-        weights = {"answer": 0, "refund": 5, "hold": 5, "escalate": 0}; amounts = [88]
+        weights = {"answer": 0, "refund": 0, "hold": 1, "escalate": 0}; amounts = [88]
     elif "$34" in prompt:
         weights = {"answer": 0, "refund": 9, "hold": 1, "escalate": 0}; amounts = [34]
     elif any(w in prompt.lower() for w in ("password", "log in", "locked out", "where is", "tracking")):
         weights = {"answer": 19, "refund": 0, "hold": 0, "escalate": 1}
     else:  # the ambiguous fixed ticket
-        weights = {"answer": 0, "refund": 8, "hold": 1, "escalate": 1}
-    if t == 0:  # sharpen: mostly the mode, a little leakage
+        weights = {"answer": 0, "refund": 1, "hold": 19, "escalate": 0}
+        if t > 1:  # flatten: the decision and the amount both start to move
+            weights = {"answer": 0, "refund": 4, "hold": 6, "escalate": 0}
+            amounts = [52.99, 52.99, 52.99, 50, 50, 67.99]
+    if t == 0:  # sharpen all the way to the mode
         mode = max(weights, key=weights.get)
-        weights = {k: (20 if k == mode else 1) for k in weights}
-        amounts = [amounts[0]] * 20 + amounts[-1:]
+        weights = {k: int(k == mode) for k in weights}
+        amounts = amounts[:1]
     action = random.choices(list(weights), weights=list(weights.values()))[0]
     amount = None
     if action in ("refund", "hold"):

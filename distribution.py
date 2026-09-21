@@ -1,11 +1,11 @@
 """Part 1: feel the distribution.
 
-One fixed ticket. Fifty calls at temperature 0, fifty at the default.
+One fixed ticket. Thirty calls at temperature 0, thirty at the default, thirty at 2.
 Plot the action the model chose and the refund amount it proposed.
 
-    uv run distribution.py                 # live, 50 calls per temperature (~4 min)
+    uv run distribution.py                 # live, 30 calls per temperature (~4 min)
     uv run distribution.py --n 100         # the real thing, if you have the time
-    uv run distribution.py --n 20          # a quick look
+    uv run distribution.py --n 10          # a quick look
     uv run distribution.py --provider fake # plumbing check, no key, NOT a model
     uv run distribution.py --replay runs/distribution.jsonl   # re-plot a saved run
 
@@ -85,6 +85,7 @@ def summarize(records: list[dict]) -> None:
     print("  1. How many distinct decisions at temperature 0? How many distinct sentences?")
     print("  2. What is the modal answer, and is it right? (Read the ticket. Decide for yourself.)")
     print("  3. Where did temperature change the decision, and where did it only change the words?")
+    print("  4. At temperature 2, which outputs break the policy the prompt states?")
 
 
 def plot(records: list[dict], out: Path) -> None:
@@ -94,8 +95,12 @@ def plot(records: list[dict], out: Path) -> None:
     import matplotlib.pyplot as plt
 
     temps = list(dict.fromkeys(str(r["temperature"]) for r in records))
-    fig, axes = plt.subplots(len(temps), 2, figsize=(10, 3.4 * len(temps)), squeeze=False)
+    # Same axes on every row, so the rows compare by eye.
+    fig, axes = plt.subplots(len(temps), 2, figsize=(10, 3.4 * len(temps)), squeeze=False,
+                             sharex="col", sharey=True)
     fig.patch.set_facecolor(PAPER)
+    every = [r["refund_amount"] for r in records if r["refund_amount"] is not None]
+    span = (min(every) - 1, max(every) + 1) if every else None
     for row, temp in enumerate(temps):
         recs = [r for r in records if str(r["temperature"]) == temp]
         counts = Counter(r["action"] for r in recs)
@@ -107,9 +112,10 @@ def plot(records: list[dict], out: Path) -> None:
         amounts = [r["refund_amount"] for r in recs if r["refund_amount"] is not None]
         ax = axes[row][1]
         if amounts:
-            ax.hist(amounts, bins=20, color=BLUE, edgecolor=PAPER)
+            ax.hist(amounts, bins=20, range=span, color=BLUE, edgecolor=PAPER)
         ax.set_title(f"temperature {temp}: refund amount proposed (n={len(amounts)})", color=INK)
-        ax.set_xlabel("dollars")
+        if row == len(temps) - 1:
+            ax.set_xlabel("dollars")
         for a in axes[row]:
             a.set_facecolor(PAPER)
             for s in ("top", "right"):
@@ -123,8 +129,8 @@ def plot(records: list[dict], out: Path) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--n", type=int, default=50, help="calls per temperature (default 50)")
-    p.add_argument("--temperatures", nargs="+", default=["default", "0"],
+    p.add_argument("--n", type=int, default=30, help="calls per temperature (default 30)")
+    p.add_argument("--temperatures", nargs="+", default=["0", "default", "2"],
                    help="temperatures to run, in order; 'default' means the provider's default. "
                         "The provider's maximum is 2.")
     p.add_argument("--model", default=DEFAULT_MODEL)
